@@ -4,6 +4,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
+
 class Scraper:
     def __init__(self, provider):
         self.session = requests.Session()
@@ -15,7 +16,11 @@ class Scraper:
         try:
             response = self.session.get(f"{self.base_url}")
             soup = BeautifulSoup(response.content, "html.parser")
-            return int(soup.find("span", {"class": "discussion-list-page-indicator"}).find_all("strong")[1].text.strip())
+            return int(
+                soup.find("span", {"class": "discussion-list-page-indicator"})
+                .find_all("strong")[1]
+                .text.strip()
+            )
         except Exception as e:
             print(f"Error fetching page count: {e}")
             return 0
@@ -27,8 +32,11 @@ class Scraper:
             soup = BeautifulSoup(response.content, "html.parser")
             discussions = soup.find_all("a", {"class": "discussion-link"})
             links = [
-                discussion["href"].replace("/discussions", "https://www.examtopics.com/discussions", 1)
-                for discussion in discussions if search_string in discussion.text
+                discussion["href"].replace(
+                    "/discussions", "https://www.examtopics.com/discussions", 1
+                )
+                for discussion in discussions
+                if search_string in discussion.text
             ]
             return links
         except Exception as e:
@@ -40,18 +48,24 @@ class Scraper:
         links = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(self.fetch_page_links, page, search_string) for page in range(1, num_pages + 1)]
+            futures = [
+                executor.submit(self.fetch_page_links, page, search_string)
+                for page in range(1, num_pages + 1)
+            ]
             with tqdm(total=num_pages, desc="Fetching Links", unit="page") as pbar:
                 for future in as_completed(futures):
                     page_links = future.result()
                     links.extend(page_links)
                     pbar.update(1)
+
         return links
+
 
 def extract_topic_question(link):
     """Extract topic and question numbers from a link."""
-    match = re.search(r'topic-(\d+)-question-(\d+)', link)
+    match = re.search(r"topic-(\d+)-question-(\d+)", link)
     return (int(match.group(1)), int(match.group(2))) if match else (None, None)
+
 
 def write_grouped_links_to_file(filename, links):
     """Write the grouped links to a file."""
@@ -60,23 +74,22 @@ def write_grouped_links_to_file(filename, links):
         topic, question = extract_topic_question(link)
         grouped_links.setdefault(topic, []).append(link)
 
-    with open(filename, 'w') as f:
+    with open(filename, "w") as f:
         for topic, links in grouped_links.items():
-            f.write(f'Topic {topic}:\n')
+            f.write(f"Topic {topic}:\n")
             for link in links:
-                f.write(f' - {link}\n')
+                f.write(f" - {link}\n")
             print(f"Topic {topic} links added to file.")
 
-def main():
-    provider = input("Enter provider name: ")
+
+def main(provider: str, search_string: str):
     scraper = Scraper(provider)
     num_pages = scraper.get_num_pages()
-    print("Total Pages:",num_pages)
+    print("Total Pages:", num_pages)
     if num_pages > 0:
-        search_string = input("Enter exam code or enter QUIT to exit: ").upper()
-        if search_string != 'QUIT':
+        if search_string != "QUIT":
             links = scraper.get_discussion_links(num_pages, search_string)
-            filename = f'{search_string} dumps.txt'
+            filename = f"{search_string} dumps.txt"
             print(f"\nYour file will be named {filename}")
             write_grouped_links_to_file(filename, links)
             print("File generation complete.")
@@ -85,5 +98,6 @@ def main():
     else:
         print("No pages found for the provider.")
 
+
 if __name__ == "__main__":
-    main()
+    main("amazon", "Machine Learning - Specialty")
